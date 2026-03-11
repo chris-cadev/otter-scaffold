@@ -1,0 +1,62 @@
+[project]
+authors = [
+  {name = "Your Name", email = "you@example.com"},
+]
+description = "FastAPI + HTMX + Tailwind CSS boilerplate"
+license = {text = "MIT"}
+name = "app"
+readme = "README.md"
+requires-python = ">=3.12"
+version = "0.1.0"
+
+dependencies = [
+  "fastapi[standard]>=0.129.2",
+  "jinja2>=3.1.6",
+  "pyyaml>=6.0",
+  "markdown>=3.0",
+  "sqlalchemy[asyncio]>=2.0",
+  "aiosqlite>=0.20",
+  "pyjwt>=2.11.0",
+  "uvicorn[standard]>=0.41.0",
+  "python-dotenv>=1.2.1",
+  "minify-html>=0.15.0",
+  "humanize>=4.15.0",
+  "alembic>=1.18.4",
+]
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=5.0",
+]
+
+[build-system]
+build-backend = "pdm.backend"
+requires = ["pdm-backend"]
+
+[tool.pdm.scripts]
+client_install = "bun install"
+client_watch = "bun run watch"
+dev = "fastapi dev src/app/app.py"
+migration_create = "alembic revision --autogenerate -m"
+post_install = {composite = ["migrate", "client_install", "build"]}
+
+clean = {shell = 'find . -type d -name "__pycache__" -exec rm -r {} + && rm -rf static .venv node_modules'}
+drop_db = "rm -f app.db"
+
+build = "bun run build"
+migrate = "alembic upgrade head"
+
+prod = "uvicorn app.app:app --host 0.0.0.0 --port 9091"
+
+test = "pytest -v --cov=app --cov-report=term-missing"
+
+watch = "bun run watch"
+
+[tool.pdm]
+distribution = true
+
+[dependency-groups]
+dev = [
+  "python-dotenv>=1.2.2",
+]

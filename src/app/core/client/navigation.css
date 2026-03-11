@@ -1,0 +1,8 @@
+nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.nav-btn {
+  @apply btn btn-ghost;
+}

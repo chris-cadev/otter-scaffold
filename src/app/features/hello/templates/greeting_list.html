@@ -1,0 +1,15 @@
+<div class="space-y-4">
+    {% if greetings %}
+        {% for greeting in greetings %}
+        <div class="card bg-base-200 shadow">
+            <div class="card-body">
+                <h3 class="card-title text-lg">{{ greeting.name }}</h3>
+                <p>{{ greeting.message }}</p>
+                <p class="text-sm opacity-50">{{ greeting.created_at }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="opacity-50">No greetings yet. Be the first!</p>
+    {% endif %}
+</div>
