@@ -1,0 +1,30 @@
+import { defineConfig } from 'vite'
+import { viteStaticCopy } from 'vite-plugin-static-copy'
+
+export default defineConfig({
+  plugins: [
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'src/assets/favicon/*',
+          dest: '',
+        },
+      ],
+    }),
+  ],
+  build: {
+    outDir: 'static',
+    assetsDir: '',
+    rollupOptions: {
+      input: {
+        main: './src/{{ package_name }}/core/client/main.ts',
+        hello: './src/{{ package_name }}/features/hello/client/main.ts',
+      },
+      output: {
+        entryFileNames: '[name].js',
+        chunkFileNames: '[name].js',
+        assetFileNames: '[name].[ext]',
+      },
+    },
+  },
+})

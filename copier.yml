@@ -1,0 +1,58 @@
+_min_copier_version: "9.0"
+_subdirectory: template
+
+_tasks:
+  - "git init"
+  - "git add ."
+  - "pdm install"
+  - "pdm dev"
+
+project_name:
+  type: str
+  default: "my-app"
+  help: "Name of your project"
+
+package_name:
+  type: str
+  default: "my_app"
+  help: "Python package name (used for imports)"
+
+author_name:
+  type: str
+  default: "Your Name"
+
+author_email:
+  type: str
+  default: "you@example.com"
+
+include_htmx:
+  type: bool
+  default: true
+  help: "Include HTMX for dynamic HTML?"
+
+include_auth:
+  type: bool
+  default: false
+  help: "Include JWT authentication?"
+
+database:
+  type: str
+  default: "sqlite"
+  choices:
+    - sqlite
+    - postgres
+  help: "Database backend"
+
+include_docker:
+  type: bool
+  default: true
+  help: "Include Docker configuration?"
+
+include_alembic:
+  type: bool
+  default: true
+  help: "Include Alembic migrations?"
+
+port:
+  type: int
+  default: 9091

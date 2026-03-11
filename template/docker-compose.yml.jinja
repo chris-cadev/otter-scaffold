@@ -1,0 +1,27 @@
+{% if include_docker %}
+services:
+  app:
+    build: .
+    ports:
+      - "{{ port }}:{{ port }}"
+    restart: unless-stopped
+    networks:
+      - app_network
+    environment:
+      - DATABASE_URL={% if database == 'sqlite' %}sqlite+aiosqlite:///app.db{% else %}postgresql+asyncpg://postgres:postgres@localhost:5432/app{% endif %}
+      {% if include_auth %}
+      - JWT_SECRET=${JWT_SECRET}
+      {% endif %}
+      - SITE_URL=${SITE_URL}
+  cloudflare:
+    image: cloudflare/cloudflared:2026.2.0
+    volumes:
+      - ./.cloudflare:/home/nonroot/.cloudflared
+    restart: unless-stopped
+    networks:
+      - app_network
+    command: tunnel run app_tunnel
+
+networks:
+  app_network:
+{% endif %}
