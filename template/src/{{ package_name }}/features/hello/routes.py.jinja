@@ -1,38 +1,26 @@
-from pathlib import Path
-
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from {{ package_name }}.core.responses import create_templates
-from {{ package_name }}.features.hello.services import get_greetings, create_greeting
+from {{ package_name }}.core.database import get_db
+from {{ package_name }}.features.hello.controllers import HelloController, get_hello_controller
+from {{ package_name }}.features.hello.services.hello_service import get_hello_service
 
 router = APIRouter()
 
-templates = create_templates([
-    Path("src/{{ package_name }}/features/hello/templates"),
-])
+
+def get_controller(
+    db: AsyncSession = Depends(get_db),
+) -> HelloController:
+    service = get_hello_service(db)
+    return get_hello_controller(service=service)
 
 
 @router.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    greetings = await get_greetings()
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "greetings": greetings}
-    )
+async def read_root(request: Request, controller: HelloController = Depends(get_controller)):
+    return await controller.render_page(request)
 
 
 @router.post("/", response_class=HTMLResponse)
-async def create_greeting_handler(request: Request):
-    form = await request.form()
-    name = form.get("name", "Anonymous")
-    message = form.get("message", "")
-
-    if message.strip():
-        await create_greeting(name, message)
-
-    greetings = await get_greetings()
-    return templates.TemplateResponse(
-        "greeting_list.html",
-        {"request": request, "greetings": greetings}
-    )
+async def create_greeting_handler(request: Request, controller: HelloController = Depends(get_controller)):
+    return await controller.handle_form_submit(request)

@@ -1,5 +1,17 @@
-{% if include_docker %}
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=app
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - app_network
   app:
     build: .
     ports:
@@ -8,20 +20,25 @@ services:
     networks:
       - app_network
     environment:
-      - DATABASE_URL={% if database == 'sqlite' %}sqlite+aiosqlite:///app.db{% else %}postgresql+asyncpg://postgres:postgres@localhost:5432/app{% endif %}
-      {% if include_auth %}
-      - JWT_SECRET=${JWT_SECRET}
-      {% endif %}
+      - DATABASE_URL={% if database == 'postgres' %}postgresql+asyncpg://postgres:postgres@db:5432/app{% else %}sqlite+aiosqlite:///{{ package_name }}.db{% endif %}
+      {%- if include_rate_limiting %}
+      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+      {%- endif %}
       - SITE_URL=${SITE_URL}
+    depends_on:
+      - db
+{%- if include_docker %}
   cloudflare:
-    image: cloudflare/cloudflared:2026.2.0
+    image: cloudflare/cloudflared:latest
     volumes:
       - ./.cloudflare:/home/nonroot/.cloudflared
     restart: unless-stopped
     networks:
       - app_network
     command: tunnel run app_tunnel
+{%- endif %}
 
 networks:
   app_network:
-{% endif %}
+volumes:
+  db_data:

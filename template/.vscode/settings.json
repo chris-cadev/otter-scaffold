@@ -1,3 +1,30 @@
 {
     "python.terminal.activateEnvironment": false,
+    "python.languageServer": "Pylance",
+    "python.analysis.typeCheckingMode": "strict",
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "[jinja]": {
+        "editor.defaultFormatter": "djfdev.djlint"
+    },
+    "[html]": {
+        "editor.defaultFormatter": "djfdev.djlint"
+    },
+    "files.associations": {
+        "*.html": "jinja",
+        "*.jinja": "jinja",
+        "*.jinja2": "jinja"
+    },
+    "jinja-lsp.enable": true,
+    "jinja-lsp.jinjaTemplates": "./src",
+    "jinja-lsp.pythonTarget": {
+        "pythonVersion": "3.12"
+    }
 }

@@ -1,11 +1,169 @@
-from {{ package_name }}.features.hello.routes import router as hello_router
+import asyncio
+import logging
+import os
+from pathlib import Path
+
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
-from fastapi import FastAPI
+
+{%- if include_rate_limiting %}
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+{%- endif %}
+
 from {{ package_name }}.core.database import init_db
 from {{ package_name }}.core.responses import create_templates
+
+logging.basicConfig(level=logging.INFO, force=True)
+security_logger = logging.getLogger("security")
+
+{%- if include_error_pages %}
+core_templates_dir = Path(__file__).parent / "core" / "templates"
+error_templates = create_templates(str(core_templates_dir))
+{%- endif %}
+
+{%- if include_rate_limiting %}
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI()
+app.state.limiter = limiter
+{%- else %}
+app = FastAPI()
+{%- endif %}
+
+
+{%- if include_rate_limiting or include_error_pages %}
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if request.url.path.endswith(".svg"):
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
+{%- endif %}
+
+{%- if include_rate_limiting %}
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "localhost").split(",")
+allowed_origins = [origin.strip() for origin in allowed_origins]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-CSRF-Token"],
+)
+{%- else %}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["localhost"],
+    allow_methods=["GET", "POST"],
+)
+{%- endif %}
+
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+{%- if include_rate_limiting or include_error_pages %}
+app.add_middleware(SecurityHeadersMiddleware)
+
+{%- endif %}
+{%- if include_rate_limiting %}
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    security_logger.warning(f"Rate limit exceeded: {request.client.host}")
+    return JSONResponse(
+        status_code=429, content={"detail": "Too many requests. Please try again later."}
+    )
+
+{%- endif %}
+
+{%- if include_error_pages %}
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == 404:
+        return error_templates.TemplateResponse(request, "404.html", {"request": request})
+    elif exc.status_code == 400:
+        return error_templates.TemplateResponse(request, "400.html", {"request": request})
+    elif exc.status_code == 403:
+        return error_templates.TemplateResponse(request, "403.html", {"request": request})
+    elif exc.status_code == 422:
+        return error_templates.TemplateResponse(request, "422.html", {"request": request})
+    elif exc.status_code == 500:
+        return error_templates.TemplateResponse(request, "500.html", {"request": request})
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logging.error(f"Unhandled exception: {exc}", exc_info=True)
+    return error_templates.TemplateResponse(request, "500.html", {"request": request})
+
+
+async def _render_service_unavailable(request: Request) -> JSONResponse:
+    if request.headers.get("hx-request") == "true":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "service_unavailable",
+                "message": "The database is unavailable. Please wait and try again.",
+            },
+        )
+    return error_templates.TemplateResponse(
+        request, "service_unavailable.html", {"request": request}, status_code=503
+    )
+
+
+@app.exception_handler(asyncio.TimeoutError)
+async def timeout_exception_handler(request: Request, exc: asyncio.TimeoutError):
+    logging.error(f"Database timeout: {exc}", exc_info=True)
+    return await _render_service_unavailable(request)
+
+{%- if database == 'postgres' %}
+try:
+    import asyncpg
+
+    @app.exception_handler(asyncpg.PostgresConnectionError)
+    async def postgres_connection_handler(request: Request, exc: asyncpg.PostgresConnectionError):
+        logging.error(f"PostgreSQL connection error: {exc}", exc_info=True)
+        return await _render_service_unavailable(request)
+
+    @app.exception_handler(asyncpg.CannotConnectNowError)
+    async def cannot_connect_handler(request: Request, exc: asyncpg.CannotConnectNowError):
+        logging.error(f"PostgreSQL cannot connect: {exc}", exc_info=True)
+        return await _render_service_unavailable(request)
+
+    @app.exception_handler(asyncpg.ConnectionDoesNotExistError)
+    async def connection_does_not_exist_handler(
+        request: Request, exc: asyncpg.ConnectionDoesNotExistError
+    ):
+        logging.error(f"PostgreSQL connection does not exist: {exc}", exc_info=True)
+        return await _render_service_unavailable(request)
+
+    @app.exception_handler(asyncpg.ConnectionFailureError)
+    async def connection_failure_handler(request: Request, exc: asyncpg.ConnectionFailureError):
+        logging.error(f"PostgreSQL connection failure: {exc}", exc_info=True)
+        return await _render_service_unavailable(request)
+except ImportError:
+    pass
+{%- endif %}
+
+{%- endif %}
+
+static_path = Path(__file__).parent.parent.parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 
 @asynccontextmanager
@@ -14,12 +172,19 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["localhost"],
-    allow_methods=["GET", "POST"],
-)
-app.add_middleware(GZipMiddleware, minimum_size=500)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.include_router(hello_router)
+app.router.lifespan_context = lifespan
+
+{%- for feature in ["hello"] %}
+from {{ package_name }}.features.{{ feature }}.routes import router as {{ feature }}_router
+app.include_router({{ feature }}_router)
+{%- endfor %}
+
+{%- if include_error_pages %}
+
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def catch_all(request: Request):
+    return error_templates.TemplateResponse(
+        request, "404.html", {"request": request}, status_code=404
+    )
+
+{%- endif %}

@@ -1,23 +1,39 @@
 # {{ project_name }}
 
-FastAPI + HTMX + Tailwind CSS boilerplate with SQLite, daisyUI, and WebSocket support.
+FastAPI + HTMX + Tailwind CSS boilerplate with {{ database|capitalize }}, daisyUI, and WebSocket support.
 
 ## Quick Start
 
 ```bash
 # Install dependencies
 pdm install
-pdm run client_install
-pdm run build
-
-# Run migrations
-pdm run migrate
 
 # Start development server
 pdm run dev
 ```
 
+{% if database == 'postgres' %}
+> **PostgreSQL selected**: Ensure PostgreSQL is running before running migrations. You can start it with Docker: `docker-compose up -d db`
+{% endif %}
+
 Visit http://localhost:{{ port }}
+
+## Database Migrations
+
+```bash
+# Run migrations
+pdm run migrate
+```
+
+{% if database == 'postgres' %}
+> **PostgreSQL required**: Ensure PostgreSQL is running locally, or use Docker:
+> ```bash
+> docker compose up -d db
+> # Update .env to use localhost instead of db:
+> # DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/app
+> pdm migrate
+> ```
+{% endif %}
 
 ## Features
 

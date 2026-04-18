@@ -1,0 +1,55 @@
+from dataclasses import dataclass
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import select
+
+from {{ package_name }}.features.hello.models import Greeting
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+
+@dataclass
+class GreetingInput:
+    name: str
+    message: str
+
+
+@dataclass
+class GreetingOutput:
+    id: int
+    name: str
+    message: str
+    created_at: datetime
+
+
+class HelloService:
+    def __init__(self, db: "AsyncSession"):
+        self.db = db
+
+    async def get_greetings(self) -> list[GreetingOutput]:
+        result = await self.db.execute(
+            select(Greeting).order_by(Greeting.created_at.desc())
+        )
+        greetings = result.scalars().all()
+        return [
+            GreetingOutput(
+                id=g.id,
+                name=g.name,
+                message=g.message,
+                created_at=g.created_at,
+            )
+            for g in greetings
+        ]
+
+    async def create_greeting(self, input_data: GreetingInput) -> Greeting:
+        greeting = Greeting(name=input_data.name, message=input_data.message)
+        self.db.add(greeting)
+        await self.db.commit()
+        await self.db.refresh(greeting)
+        return greeting
+
+
+def get_hello_service(db: "AsyncSession") -> HelloService:
+    return HelloService(db)

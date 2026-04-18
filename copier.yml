@@ -5,7 +5,6 @@ _tasks:
   - "git init"
   - "git add ."
   - "pdm install"
-  - "pdm dev"
 
 project_name:
   type: str
@@ -37,7 +36,7 @@ include_auth:
 
 database:
   type: str
-  default: "sqlite"
+  default: "postgres"
   choices:
     - sqlite
     - postgres
@@ -52,6 +51,21 @@ include_alembic:
   type: bool
   default: true
   help: "Include Alembic migrations?"
+
+include_rate_limiting:
+  type: bool
+  default: false
+  help: "Include slowapi rate limiting?"
+
+include_error_pages:
+  type: bool
+  default: false
+  help: "Include custom HTML error pages?"
+
+include_e2e:
+  type: bool
+  default: false
+  help: "Include Playwright e2e tests?"
 
 port:
   type: int

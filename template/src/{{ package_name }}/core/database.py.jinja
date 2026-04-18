@@ -1,25 +1,38 @@
+import os
+from collections.abc import AsyncGenerator
 
-from typing import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from {{ package_name }}.core.base import Base
 from {{ package_name }}.core.config import DATABASE_URL
 
+POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
+POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "5"))
+
 engine = create_async_engine(
     DATABASE_URL,
-    echo=False
+    echo=False,
+    pool_timeout=POOL_TIMEOUT,
+    pool_pre_ping=True,
+    connect_args={
+        "timeout": CONNECT_TIMEOUT,
+        "command_timeout": CONNECT_TIMEOUT,
+    },
 )
-async_session_maker = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
-        yield session
+        try:
+            yield session
+        except (TimeoutError, ConnectionRefusedError):
+            await session.rollback()
+            raise
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def init_db():

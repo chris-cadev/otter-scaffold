@@ -1,0 +1,30 @@
+import pytest
+from {{ package_name }}.features.hello.services import create_greeting, get_greetings
+
+
+@pytest.mark.asyncio
+async def test_get_greetings_empty(db_session):
+    greetings = await get_greetings()
+    assert greetings == []
+
+
+@pytest.mark.asyncio
+async def test_create_greeting(db_session):
+    greeting = await create_greeting(name="Alice", message="Hello!")
+
+    assert greeting.id is not None
+    assert greeting.name == "Alice"
+    assert greeting.message == "Hello!"
+    assert greeting.created_at is not None
+
+
+@pytest.mark.asyncio
+async def test_get_greetings_after_creation(db_session):
+    await create_greeting(name="Bob", message="Hi there!")
+    await create_greeting(name="Charlie", message="Greetings!")
+
+    greetings = await get_greetings()
+
+    assert len(greetings) == 2
+    assert greetings[0]["name"] == "Charlie"
+    assert greetings[1]["name"] == "Bob"

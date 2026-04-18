@@ -15,4 +15,4 @@ class Greeting(Base):
     name: Mapped[str] = mapped_column(String(100))
     message: Mapped[str] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=Base.now)
+        DateTime, default=lambda: datetime.utcnow())

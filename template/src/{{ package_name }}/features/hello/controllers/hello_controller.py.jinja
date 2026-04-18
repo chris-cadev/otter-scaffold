@@ -1,0 +1,47 @@
+from typing import TYPE_CHECKING
+
+from fastapi import Depends, Request
+from fastapi.responses import HTMLResponse
+
+from {{ package_name }}.features.hello.services.hello_service import HelloService, get_hello_service
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+from pathlib import Path
+
+from {{ package_name }}.core.responses import create_templates_with_response
+
+
+def _get_templates():
+    templates_dir = Path(__file__).parent.parent / "templates"
+    return create_templates_with_response(str(templates_dir))
+
+
+class HelloController:
+    def __init__(self, service: HelloService):
+        self.service = service
+        self.templates = _get_templates()
+
+    async def render_page(self, request: "Request") -> HTMLResponse:
+        greetings = await self.service.get_greetings()
+        return self.templates(request, "index.html", {"greetings": greetings})
+
+    async def handle_form_submit(self, request: "Request") -> HTMLResponse:
+        form = await request.form()
+        name = form.get("name", "Anonymous")
+        message = form.get("message", "")
+
+        if message.strip():
+            from {{ package_name }}.features.hello.services import GreetingInput
+            input_data = GreetingInput(name=name, message=message)
+            await self.service.create_greeting(input_data)
+
+        greetings = await self.service.get_greetings()
+        return self.templates(request, "greeting_list.html", {"greetings": greetings})
+
+
+def get_hello_controller(
+    service: HelloService = Depends(get_hello_service),
+) -> HelloController:
+    return HelloController(service)
