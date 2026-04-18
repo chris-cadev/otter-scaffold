@@ -16,6 +16,11 @@ package_name:
   default: "my_app"
   help: "Python package name (used for imports)"
 
+site_host:
+  type: str
+  default: "example.com"
+  help: "Your domain (e.g., example.com)"
+
 author_name:
   type: str
   default: "Your Name"

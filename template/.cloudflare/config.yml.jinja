@@ -1,0 +1,11 @@
+tunnel: [[tunnel-id]]
+credentials-file: /home/nonroot/.cloudflared/[[tunnel-id]].json
+warp-routing:
+  enabled: true
+ingress:
+  - hostname: www.{{ site_host }}
+    service: http://app:9091
+  - hostname: {{ site_host }}
+    service: http://app:9091
+
+  - service: http_status:404

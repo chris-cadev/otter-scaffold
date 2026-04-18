@@ -65,72 +65,36 @@ docker compose up --build -d
 
 The app will be available at `http://localhost:{{ port }}`
 
-## Cloudflare Tunnel Setup
+## Production Deployment
 
-### 1. Run Cloudflare Commands
+### Set Up Cloudflare Tunnel
 
-All cloudflared commands can be run from the Docker container:
-
-```bash
-docker compose run --rm cloudflare ...
-```
-
-### 2. Login to Cloudflare
+Run these commands once to expose your app to the internet:
 
 ```bash
+# Set ownership for cloudflared directory
+sudo chown 65532:65532 .cloudflare
+
+# Login to Cloudflare (opens browser)
 docker compose run --rm cloudflare tunnel login
+
+# Create tunnel
+docker compose run --rm cloudflare tunnel create {{ package_name }}
+
+# Create DNS records for domain and www
+docker compose run --rm cloudflare tunnel route dns {{ package_name }} {{ site_host }}
+docker compose run --rm cloudflare tunnel route dns {{ package_name }} www.{{ site_host }}
 ```
 
-This will open a browser window to authenticate with Cloudflare.
+[Extract Tunnel Credentials](#extract-tunnel-credentials) to create the credentials file.
 
-### 3. Create a Tunnel
+### Start Services
 
 ```bash
-docker compose run --rm cloudflare tunnel create app_tunnel
+docker compose up -d
 ```
 
-Save the tunnel ID - you'll need it for configuration.
-
-### 4. Create Cloudflare DNS Record
-
-```bash
-# Point your domain to the tunnel
-docker compose run --rm cloudflare tunnel route dns app_tunnel your-domain.com
-```
-
-### 5. Configure Tunnel
-
-Create `cloudflared/config.yml`:
-
-```yaml
-tunnel: <tunnel-id>
-ingress:
-  - hostname: your-domain.com
-    service: http://app:{{ port }}
-  - service: http_status:404
-```
-
-### 6. Update docker-compose.yml
-
-The tunnel container expects credentials at:
-```
-./cloudflare/volumes:/home/nonroot/.cloudflared
-```
-
-Mount your credentials:
-```bash
-mkdir -p .cloudflare/volumes
-cp ~/.cloudflared/<tunnel-id>.json .cloudflare/volumes/credentials.json
-```
-
-### 7. Restart Services
-
-```bash
-docker compose down
-docker-compose up -d
-```
-
-Your app should now be accessible at `https://your-domain.com`
+Your app will be available at `https://{{ site_host }}`
 
 ## Adding New Features
 
@@ -207,5 +171,36 @@ docker-compose logs cloudflare
 
 Verify credentials:
 ```bash
-ls -la .cloudflare/volumes/
+ls -la .cloudflare/
 ```
+
+## Reference
+
+### Extract Tunnel Credentials
+
+```bash
+TUNNEL_NAME={{ package_name }}
+docker compose run --rm cloudflare tunnel token $TUNNEL_NAME \
+  | base64 --decode \
+  | jq '
+    .AccountTag = .a
+    | .TunnelSecret = .s
+    | .TunnelID = .t
+    | .Endpoint = ""
+    | del(.a, .s, .t)
+  ' \
+  | tee >(jq -r '.TunnelID' | xargs -I{} sh -c "cat > '.cloudflare/{}.json'") >/dev/null
+```
+
+This creates `{tunnel-id}.json` in the `.cloudflare` directory.
+
+### Update Config with Tunnel ID
+
+```bash
+TUNNEL_ID=$(jq -r '.TunnelID' .cloudflare/*.json)
+sed -i "s/\[\[tunnel-id\]\]/$TUNNEL_ID/g" .cloudflare/config.yml.jinja
+```
+
+### Backup: Restore Tunnel Credentials
+
+If the credentials file is lost, run [Extract Tunnel Credentials](#extract-tunnel-credentials) then run [Update Config with Tunnel ID](#update-config-with-tunnel-id).
